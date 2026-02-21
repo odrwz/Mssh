@@ -3,7 +3,7 @@
 # Requirements: bash, ssh-keygen, awk, grep, sed (all macOS built-in)
 # https://github.com/odrwz/mssh
 
-set -euo pipefail
+set -uo pipefail
 
 SSH_CONFIG="$HOME/.ssh/config"
 
