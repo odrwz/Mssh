@@ -1,0 +1,18 @@
+# Binaries
+climssh
+*.exe
+
+# Go archive
+go1.22.1.linux-amd64.tar.gz
+
+# Go build artifacts
+*.o
+*.a
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
