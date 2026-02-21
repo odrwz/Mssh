@@ -112,7 +112,10 @@ do_generate_key() {
 
 menu_manage_hosts() {
   while true; do
-    mapfile -t rows < <(list_hosts)
+    local rows=()
+    while IFS= read -r line; do
+      rows+=("$line")
+    done < <(list_hosts)
     if [[ ${#rows[@]} -eq 0 ]]; then
       echo "  No SSH hosts found in ~/.ssh/config."
       return
@@ -126,9 +129,9 @@ menu_manage_hosts() {
       printf "  %2d) %-18s %s@%s:%s\n" "$i" "$alias" "${user:--}" "$hostname" "$port"
       (( i++ ))
     done
-    echo "   0) <- Back"
-    read -rp "  Select: " sel
-    [[ -z "$sel" || "$sel" == "0" ]] && return
+    echo "   q) <- Back"
+    read -rp "  Select (number/q): " sel
+    [[ -z "$sel" || "$sel" == "q" ]] && return
 
     local idx=$(( sel - 1 ))
     if (( idx < 0 || idx >= ${#rows[@]} )); then
@@ -141,47 +144,83 @@ menu_manage_hosts() {
 }
 
 menu_one_host() {
-  local alias=$1 hostname=$2 user=$3 port=$4 idf=$5
+  local h_alias=$1 h_hostname=$2 h_user=$3 h_port=$4 h_idf=$5
   while true; do
-    _print_host "$alias" "$hostname" "$user" "$port" "$idf"
-    echo "  1) Edit   2) Delete   0) <- Back"
-    read -rp "  Action: " act
+    _print_host "$h_alias" "$h_hostname" "$h_user" "$h_port" "$h_idf"
+    echo "  1) Edit   2) Delete   q) <- Back"
+    read -rp "  Action (1-2/q): " act
     case $act in
       1)
-        local orig_alias=$alias
+        local orig_alias=$h_alias
         echo ""
-        read -rp "  Alias        [$alias]:    " v; alias=${v:-$alias}
-        read -rp "  HostName     [$hostname]: " v; hostname=${v:-$hostname}
-        read -rp "  User         [$user]:     " v; user=${v:-$user}
-        read -rp "  Port         [${port:-22}]: " v; port=${v:-${port:-22}}
-        read -rp "  IdentityFile [$idf]:      " v; idf=${v:-$idf}
+        read -rp "  Alias        [$h_alias]:    " v; h_alias=${v:-$h_alias}
+        read -rp "  HostName     [$h_hostname]: " v; h_hostname=${v:-$h_hostname}
+        read -rp "  User         [$h_user]:     " v; h_user=${v:-$h_user}
+        read -rp "  Port         [${h_port:-22}]: " v; h_port=${v:-${h_port:-22}}
+        
+        # IdentityFile 选择列表
+        echo ""
+        echo "  IdentityFile [$h_idf]:"
+        echo "  0) Keep current"
+        echo "  1) Select from existing keys"
+        echo "  2) Clear (remove key)"
+        read -rp "  Choose [0]: " idf_opt
+        idf_opt=${idf_opt:-0}
+        case $idf_opt in
+          1)
+            local keys=()
+            while IFS= read -r line; do
+              keys+=("$line")
+            done < <(list_keys 2>/dev/null || true)
+            if [[ ${#keys[@]} -eq 0 ]]; then
+              echo "  No existing keys found. Keeping current."
+            else
+              echo ""
+              local i=1
+              for k in "${keys[@]}"; do printf "  %d) %s\n" "$i" "$k"; (( i++ )); done
+              echo "  q) Cancel"
+              read -rp "  Select key: " ksel
+              if [[ "$ksel" != "q" && "$ksel" != "Q" && -n "$ksel" ]]; then
+                local idx=$(( ksel - 1 ))
+                if (( idx >= 0 && idx < ${#keys[@]} )); then
+                  h_idf="${keys[$idx]}"
+                fi
+              fi
+            fi ;;
+          2) h_idf="" ;;
+        esac
+        
         delete_host "$orig_alias"
-        add_host "$alias" "$hostname" "$user" "$port" "$idf"
+        add_host "$h_alias" "$h_hostname" "$h_user" "$h_port" "$h_idf"
         echo "  Host updated."
         return ;;
       2)
-        read -rp "  Delete [$alias]? (y/N): " confirm
-        if [[ "${confirm,,}" == "y" ]]; then
-          delete_host "$alias"
+        read -rp "  Delete [$h_alias]? (y/N): " confirm
+        if [[ "$confirm" == [Yy] ]]; then
+          delete_host "$h_alias"
           echo "  Host deleted."
           return
         fi ;;
-      0|"") return ;;
+      q|Q|"") return ;;
     esac
   done
 }
 
 menu_new_host() {
+  local h_alias="" h_hostname="" h_user="" h_port="22" h_idf=""
+  
+  # 第一步：输入基本信息
   echo ""
-  read -rp "  Host Alias  (e.g. myserver): " alias
-  [[ -z "$alias" ]] && echo "  Cancelled." && return
+  read -rp "  Host Alias              : " h_alias
+  [[ -z "$h_alias" ]] && echo "  Cancelled." && return
 
-  read -rp "  HostName or IP:              " hostname
-  [[ -z "$hostname" ]] && echo "  Cancelled." && return
+  read -rp "  HostName or IP:              " h_hostname
+  [[ -z "$h_hostname" ]] && echo "  Cancelled." && return
 
-  read -rp "  User        (e.g. ubuntu):   " user
-  read -rp "  Port        [22]:            " port; port=${port:-22}
+  read -rp "  User                    : " h_user
+  read -rp "  Port                    : " h_port; h_port=${h_port:-22}
 
+  # 第二步：选择密钥（内联）
   echo ""
   echo "  IdentityFile (SSH Key):"
   echo "  1) Select Existing Key"
@@ -189,10 +228,12 @@ menu_new_host() {
   echo "  3) Skip"
   read -rp "  Choose: " key_opt
 
-  local idf=""
   case $key_opt in
     1)
-      mapfile -t keys < <(list_keys 2>/dev/null || true)
+      local keys=()
+      while IFS= read -r line; do
+        keys+=("$line")
+      done < <(list_keys 2>/dev/null || true)
       if [[ ${#keys[@]} -eq 0 ]]; then
         echo "  No existing keys found in ~/.ssh/."
       else
@@ -200,14 +241,84 @@ menu_new_host() {
         local i=1
         for k in "${keys[@]}"; do printf "  %d) %s\n" "$i" "$k"; (( i++ )); done
         read -rp "  Select key: " ksel
-        idf="${keys[$(( ksel - 1 ))]:-}"
+        h_idf="${keys[$(( ksel - 1 ))]:-}"
       fi ;;
     2)
-      idf=$(do_generate_key | tail -1) ;;
+      h_idf=$(do_generate_key | tail -1) ;;
   esac
-
-  add_host "$alias" "$hostname" "$user" "$port" "$idf"
-  printf "  Host [%s] added to ~/.ssh/config.\n" "$alias"
+  
+  # 第三步：确认/编辑循环
+  while true; do
+    _print_host "$h_alias" "$h_hostname" "$h_user" "$h_port" "$h_idf"
+    echo "  1) Confirm and Save"
+    echo "  2) Edit..."
+    echo "  q) Cancel"
+    read -rp "  Choose (1-2/q): " confirm_opt
+    
+    case $confirm_opt in
+      1)
+        add_host "$h_alias" "$h_hostname" "$h_user" "$h_port" "$h_idf"
+        echo "  Host [$h_alias] added to ~/.ssh/config."
+        return ;;
+      2)
+        # 编辑字段（内联）
+        echo ""
+        echo "  Select field to edit:"
+        echo "  1) Alias       [$h_alias]"
+        echo "  2) HostName    [$h_hostname]"
+        echo "  3) User        [$h_user]"
+        echo "  4) Port        [$h_port]"
+        echo "  5) IdentityFile [${h_idf:-(none)}]"
+        echo "  q) Back"
+        read -rp "  Choose: " field
+        
+        case $field in
+          1)
+            read -rp "  Alias [$h_alias]: " v
+            h_alias=${v:-$h_alias} ;;
+          2)
+            read -rp "  HostName [$h_hostname]: " v
+            h_hostname=${v:-$h_hostname} ;;
+          3)
+            read -rp "  User [$h_user]: " v
+            h_user=${v:-$h_user} ;;
+          4)
+            read -rp "  Port [$h_port]: " v
+            h_port=${v:-$h_port} ;;
+          5)
+            # 重新选择密钥（内联）
+            echo ""
+            echo "  IdentityFile (SSH Key):"
+            echo "  1) Select Existing Key"
+            echo "  2) Generate New Key"
+            echo "  3) Clear"
+            echo "  4) Keep current"
+            read -rp "  Choose: " key_opt2
+            case $key_opt2 in
+              1)
+                local keys2=()
+                while IFS= read -r line; do
+                  keys2+=("$line")
+                done < <(list_keys 2>/dev/null || true)
+                if [[ ${#keys2[@]} -eq 0 ]]; then
+                  echo "  No existing keys found."
+                else
+                  echo ""
+                  local i=1
+                  for k in "${keys2[@]}"; do printf "  %d) %s\n" "$i" "$k"; (( i++ )); done
+                  read -rp "  Select key: " ksel2
+                  h_idf="${keys2[$(( ksel2 - 1 ))]:-}"
+                fi ;;
+              2) h_idf=$(do_generate_key | tail -1) ;;
+              3) h_idf="" ;;
+            esac ;;
+        esac
+        ;;
+      q|Q|"")
+        echo "  Cancelled."
+        return ;;
+    esac
+  done
 }
 
 menu_manage_keys() {
@@ -216,12 +327,15 @@ menu_manage_keys() {
     echo "  -- Key Management -------------------------------------"
     echo "  1) List Keys"
     echo "  2) Generate New Key"
-    echo "  0) <- Back"
-    read -rp "  Select: " opt
+    echo "  q) <- Back"
+    read -rp "  Select (1-2/q): " opt
     case $opt in
       1)
         echo ""
-        mapfile -t keys < <(list_keys 2>/dev/null || true)
+        local keys=()
+        while IFS= read -r line; do
+          keys+=("$line")
+        done < <(list_keys 2>/dev/null || true)
         if [[ ${#keys[@]} -eq 0 ]]; then
           echo "  No SSH private keys found in ~/.ssh/."
         else
@@ -229,7 +343,7 @@ menu_manage_keys() {
           for k in "${keys[@]}"; do echo "    * $k"; done
         fi ;;
       2) do_generate_key ;;
-      0|"") return ;;
+      q|Q|"") return ;;
     esac
   done
 }
@@ -246,13 +360,13 @@ main() {
     echo "  1) Manage SSH Hosts"
     echo "  2) New SSH Host"
     echo "  3) Manage SSH Keys"
-    echo "  0) Exit"
-    read -rp "  Select: " opt
+    echo "  q) Exit"
+    read -rp "  Select (1-2/q): " opt
     case $opt in
       1) menu_manage_hosts ;;
       2) menu_new_host ;;
       3) menu_manage_keys ;;
-      0|"") echo "  Goodbye!"; exit 0 ;;
+      q|Q|"") echo "  Goodbye!"; exit 0 ;;
     esac
   done
 }
