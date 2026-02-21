@@ -1,4 +1,4 @@
-module github.com/qwer1234/climssh
+module github.com/odrwz/climssh
 
 go 1.22.1
 
