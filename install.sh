@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# CLImssh installer
+# mssh installer
 set -e
-curl -fsSL https://raw.githubusercontent.com/odrwz/CLImssh/main/climssh \
-  -o /usr/local/bin/climssh && chmod +x /usr/local/bin/climssh
-echo "climssh installed. Run: climssh"
+curl -fsSL https://raw.githubusercontent.com/odrwz/mssh/main/mssh \
+  -o /usr/local/bin/mssh && chmod +x /usr/local/bin/mssh
+echo "mssh installed. Run: mssh"

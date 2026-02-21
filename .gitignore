@@ -3,9 +3,9 @@
 Thumbs.db
 
 # Compiled binaries
-climssh-darwin-*
-climssh-linux-*
-climssh-windows-*
+mssh-darwin-*
+mssh-linux-*
+mssh-windows-*
 
 # Archives
 *.tar.gz
