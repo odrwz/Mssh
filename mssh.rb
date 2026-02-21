@@ -1,21 +1,15 @@
 class Mssh < Formula
-  desc "Interactive CLI tool to manage SSH Configs and Keys"
-  homepage "https://github.com/qwer1234/climssh"
-  # This URL will be replaced by the actual release tarball URL once published
-  url "https://github.com/qwer1234/climssh/archive/refs/tags/v1.0.0.tar.gz"
-  version "1.0.0"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000" # Update this
-  license "MIT"
-
-  depends_on "go" => :build
+  desc "SSH Host & Key Manager CLI"
+  homepage "https://github.com/odrwz/CLImssh"
+  url "https://raw.githubusercontent.com/odrwz/CLImssh/main/climssh"
+  # sha256 "<run: sha256sum climssh> and paste here after tagging"
+  version "2.0.0"
 
   def install
-    # Build the binary
-    system "go", "build", *std_go_args(output: bin/"mssh"), "main.go", "sshconfig.go", "sshkey.go", "ui.go"
+    bin.install "climssh"
   end
 
   test do
-    # Simple test to verify the binary runs
-    assert_match "Welcome to CLImssh", shell_output("#{bin}/mssh --help", 1) # Because we don't handle --help properly, it might just exit or crash, but we can refine test later
+    assert_match "CLImssh", shell_output("#{bin}/climssh 2>&1 || true")
   end
 end

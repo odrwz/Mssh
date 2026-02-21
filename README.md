@@ -1,29 +1,46 @@
 # CLImssh
 
-`climssh` is an interactive command-line tool designed for Mac users to easily manage their `~/.ssh/config` file and SSH keys.
+SSH Host & Key Manager for macOS — a single Bash script, zero dependencies.
 
 ## Features
-- **Interactive UI**: Navigate menus to view, create, and manage your SSH connections.
-- **SSH Config Management**: Parse and write hosts safely to `~/.ssh/config`.
-- **Key Generation**: Interactively generate RSA, Ed25519, or ECDSA keys and link them directly to your connections.
 
-## Installation (macOS)
-You can install this via Homebrew. (Note: Replace `odrwz` with your GitHub username once the repository is pushed).
+- View, add, edit, delete SSH hosts in `~/.ssh/config`
+- List and generate SSH keys (ed25519 / rsa / ecdsa)
+- Associate keys with hosts during creation
 
+## Requirements
+
+- macOS (bash, ssh-keygen, awk, sed — all built-in)
+- No Go, no Node, no pip — nothing to install
+
+## Install
+
+**One-line install:**
 ```bash
-brew tap odrwz/climssh
-brew install climssh
+curl -fsSL https://raw.githubusercontent.com/odrwz/CLImssh/main/install.sh | bash
 ```
 
-Alternatively, build from source using Go:
+**Manual:**
 ```bash
-go build -o climssh .
-sudo mv climssh /usr/local/bin/
+curl -fsSL https://raw.githubusercontent.com/odrwz/CLImssh/main/climssh \
+  -o /usr/local/bin/climssh && chmod +x /usr/local/bin/climssh
+```
+
+**Homebrew:**
+```bash
+brew install odrwz/tap/mssh
 ```
 
 ## Usage
-Simply run the program in your terminal:
-```bash
+
+```
 climssh
 ```
-It will present you with an interactive menu. Use the Arrow Keys to navigate and Enter to select.
+
+An interactive menu will guide you through all options.
+
+## Uninstall
+
+```bash
+rm /usr/local/bin/climssh
+```

@@ -1,18 +1,15 @@
-# Binaries
-climssh
-*.exe
-
-# Go archive
-go1.22.1.linux-amd64.tar.gz
-
-# Go build artifacts
-*.o
-*.a
-
-# IDE
-.vscode/
-.idea/
-
 # OS
 .DS_Store
 Thumbs.db
+
+# Compiled binaries
+climssh-darwin-*
+climssh-linux-*
+climssh-windows-*
+
+# Archives
+*.tar.gz
+*.zip
+
+# Go artifacts (no longer used)
+vendor/

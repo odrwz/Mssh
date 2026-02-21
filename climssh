@@ -1,0 +1,260 @@
+#!/usr/bin/env bash
+# CLImssh -- SSH Host & Key Manager
+# Requirements: bash, ssh-keygen, awk, grep, sed (all macOS built-in)
+# https://github.com/odrwz/CLImssh
+
+set -euo pipefail
+
+SSH_CONFIG="$HOME/.ssh/config"
+
+# --- Helpers ----------------------------------------------------------------
+
+_ensure_config() {
+  mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+  [[ ! -f "$SSH_CONFIG" ]] && touch "$SSH_CONFIG" && chmod 600 "$SSH_CONFIG"
+}
+
+_print_host() {
+  local alias=$1 hostname=$2 user=$3 port=${4:-22} idf=${5:-(none)}
+  printf "\n  Alias       : %s\n  HostName    : %s\n  User        : %s\n  Port        : %s\n  IdentityFile: %s\n\n" \
+    "$alias" "$hostname" "$user" "$port" "$idf"
+}
+
+# --- SSH Config CRUD --------------------------------------------------------
+
+# Output: one line per host -> alias|hostname|user|port|identityfile
+list_hosts() {
+  [[ ! -f "$SSH_CONFIG" ]] && return
+  awk '
+    /^Host / && $2 != "*" {
+      if (alias != "") print alias "|" hostname "|" user "|" (port==""?"22":port) "|" idf
+      alias=$2; hostname=""; user=""; port=""; idf=""
+    }
+    /^[[:space:]]+HostName /     { hostname=$2 }
+    /^[[:space:]]+User /         { user=$2 }
+    /^[[:space:]]+Port /         { port=$2 }
+    /^[[:space:]]+IdentityFile / { idf=$2 }
+    END { if (alias != "") print alias "|" hostname "|" user "|" (port==""?"22":port) "|" idf }
+  ' "$SSH_CONFIG"
+}
+
+add_host() {
+  local alias=$1 hostname=$2 user=$3 port=${4:-22} idf=${5:-}
+  _ensure_config
+  {
+    printf "\nHost %s\n" "$alias"
+    [[ -n "$hostname" ]] && printf "  HostName %s\n" "$hostname"
+    [[ -n "$user" ]]     && printf "  User %s\n"     "$user"
+    [[ "$port" != "22" && -n "$port" ]] && printf "  Port %s\n" "$port"
+    [[ -n "$idf" ]]      && printf "  IdentityFile %s\n" "$idf"
+  } >> "$SSH_CONFIG"
+}
+
+delete_host() {
+  local alias=$1
+  awk -v target="Host $alias" '
+    /^Host / { skip = ($0 == target) }
+    !skip
+  ' "$SSH_CONFIG" > /tmp/_climssh_cfg && mv /tmp/_climssh_cfg "$SSH_CONFIG"
+}
+
+# --- SSH Keys ---------------------------------------------------------------
+
+list_keys() {
+  local found=0
+  for f in "$HOME/.ssh"/*; do
+    [[ -f "$f" && -f "${f}.pub" ]] && echo "$f" && found=1
+  done
+  return $(( found == 0 ))
+}
+
+do_generate_key() {
+  echo ""
+  echo "  Key Type:"
+  echo "  1) ed25519  (recommended)"
+  echo "  2) rsa"
+  echo "  3) ecdsa"
+  read -rp "  Select [1]: " t
+  t=${t:-1}
+
+  local key_type bits=()
+  case $t in
+    2) key_type="rsa"
+       echo "  Bits: 1) 2048  2) 3072  3) 4096"
+       read -rp "  Select [3]: " b; b=${b:-3}
+       case $b in 1) bits=(-b 2048);; 2) bits=(-b 3072);; *) bits=(-b 4096);; esac ;;
+    3) key_type="ecdsa"
+       echo "  Curve: 1) 256  2) 384  3) 521"
+       read -rp "  Select [1]: " b; b=${b:-1}
+       case $b in 2) bits=(-b 384);; 3) bits=(-b 521);; *) bits=(-b 256);; esac ;;
+    *) key_type="ed25519" ;;
+  esac
+
+  read -rp "  Comment (optional): " comment
+  read -rp "  Filename [id_${key_type}]: " filename
+  filename=${filename:-id_${key_type}}
+  local filepath="$HOME/.ssh/$filename"
+
+  if [[ -f "$filepath" ]]; then
+    echo "  File already exists: $filepath"
+    echo "  Delete it first or choose a different name."
+    return 1
+  fi
+
+  local args=(-t "$key_type" -f "$filepath" -q -N "" "${bits[@]}")
+  [[ -n "$comment" ]] && args+=(-C "$comment")
+
+  ssh-keygen "${args[@]}" && echo "  Key generated: $filepath"
+  echo "$filepath"
+}
+
+# --- Menus ------------------------------------------------------------------
+
+menu_manage_hosts() {
+  while true; do
+    mapfile -t rows < <(list_hosts)
+    if [[ ${#rows[@]} -eq 0 ]]; then
+      echo "  No SSH hosts found in ~/.ssh/config."
+      return
+    fi
+
+    echo ""
+    echo "  -- SSH Hosts ------------------------------------------"
+    local i=1
+    for row in "${rows[@]}"; do
+      IFS='|' read -r alias hostname user port idf <<< "$row"
+      printf "  %2d) %-18s %s@%s:%s\n" "$i" "$alias" "${user:--}" "$hostname" "$port"
+      (( i++ ))
+    done
+    echo "   0) <- Back"
+    read -rp "  Select: " sel
+    [[ -z "$sel" || "$sel" == "0" ]] && return
+
+    local idx=$(( sel - 1 ))
+    if (( idx < 0 || idx >= ${#rows[@]} )); then
+      echo "  Invalid selection."; continue
+    fi
+
+    IFS='|' read -r alias hostname user port idf <<< "${rows[$idx]}"
+    menu_one_host "$alias" "$hostname" "$user" "$port" "$idf"
+  done
+}
+
+menu_one_host() {
+  local alias=$1 hostname=$2 user=$3 port=$4 idf=$5
+  while true; do
+    _print_host "$alias" "$hostname" "$user" "$port" "$idf"
+    echo "  1) Edit   2) Delete   0) <- Back"
+    read -rp "  Action: " act
+    case $act in
+      1)
+        local orig_alias=$alias
+        echo ""
+        read -rp "  Alias        [$alias]:    " v; alias=${v:-$alias}
+        read -rp "  HostName     [$hostname]: " v; hostname=${v:-$hostname}
+        read -rp "  User         [$user]:     " v; user=${v:-$user}
+        read -rp "  Port         [${port:-22}]: " v; port=${v:-${port:-22}}
+        read -rp "  IdentityFile [$idf]:      " v; idf=${v:-$idf}
+        delete_host "$orig_alias"
+        add_host "$alias" "$hostname" "$user" "$port" "$idf"
+        echo "  Host updated."
+        return ;;
+      2)
+        read -rp "  Delete [$alias]? (y/N): " confirm
+        if [[ "${confirm,,}" == "y" ]]; then
+          delete_host "$alias"
+          echo "  Host deleted."
+          return
+        fi ;;
+      0|"") return ;;
+    esac
+  done
+}
+
+menu_new_host() {
+  echo ""
+  read -rp "  Host Alias  (e.g. myserver): " alias
+  [[ -z "$alias" ]] && echo "  Cancelled." && return
+
+  read -rp "  HostName or IP:              " hostname
+  [[ -z "$hostname" ]] && echo "  Cancelled." && return
+
+  read -rp "  User        (e.g. ubuntu):   " user
+  read -rp "  Port        [22]:            " port; port=${port:-22}
+
+  echo ""
+  echo "  IdentityFile (SSH Key):"
+  echo "  1) Select Existing Key"
+  echo "  2) Generate New Key"
+  echo "  3) Skip"
+  read -rp "  Choose: " key_opt
+
+  local idf=""
+  case $key_opt in
+    1)
+      mapfile -t keys < <(list_keys 2>/dev/null || true)
+      if [[ ${#keys[@]} -eq 0 ]]; then
+        echo "  No existing keys found in ~/.ssh/."
+      else
+        echo ""
+        local i=1
+        for k in "${keys[@]}"; do printf "  %d) %s\n" "$i" "$k"; (( i++ )); done
+        read -rp "  Select key: " ksel
+        idf="${keys[$(( ksel - 1 ))]:-}"
+      fi ;;
+    2)
+      idf=$(do_generate_key | tail -1) ;;
+  esac
+
+  add_host "$alias" "$hostname" "$user" "$port" "$idf"
+  printf "  Host [%s] added to ~/.ssh/config.\n" "$alias"
+}
+
+menu_manage_keys() {
+  while true; do
+    echo ""
+    echo "  -- Key Management -------------------------------------"
+    echo "  1) List Keys"
+    echo "  2) Generate New Key"
+    echo "  0) <- Back"
+    read -rp "  Select: " opt
+    case $opt in
+      1)
+        echo ""
+        mapfile -t keys < <(list_keys 2>/dev/null || true)
+        if [[ ${#keys[@]} -eq 0 ]]; then
+          echo "  No SSH private keys found in ~/.ssh/."
+        else
+          echo "  SSH Private Keys:"
+          for k in "${keys[@]}"; do echo "    * $k"; done
+        fi ;;
+      2) do_generate_key ;;
+      0|"") return ;;
+    esac
+  done
+}
+
+# --- Entry Point ------------------------------------------------------------
+
+main() {
+  echo "╔══════════════════════════════════════╗"
+  echo "║    CLImssh -- SSH Host & Key Manager ║"
+  echo "╚══════════════════════════════════════╝"
+
+  while true; do
+    echo ""
+    echo "  1) Manage SSH Hosts"
+    echo "  2) New SSH Host"
+    echo "  3) Manage SSH Keys"
+    echo "  0) Exit"
+    read -rp "  Select: " opt
+    case $opt in
+      1) menu_manage_hosts ;;
+      2) menu_new_host ;;
+      3) menu_manage_keys ;;
+      0|"") echo "  Goodbye!"; exit 0 ;;
+    esac
+  done
+}
+
+main
