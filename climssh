@@ -16,7 +16,7 @@ _ensure_config() {
 
 _print_host() {
   local alias=$1 hostname=$2 user=$3 port=${4:-22} idf=${5:-(none)}
-  printf "\n  Alias       : %s\n  HostName    : %s\n  User        : %s\n  Port        : %s\n  IdentityFile: %s\n\n" \
+  printf "\n  Alias   : %s\n  Host    : %s\n  User    : %s\n  Port    : %s\n  Key     : %s\n\n" \
     "$alias" "$hostname" "$user" "$port" "$idf"
 }
 
@@ -211,14 +211,14 @@ menu_new_host() {
   
   # 第一步：输入基本信息
   echo ""
-  read -rp "  Host Alias              : " h_alias
+  read -rp "  Alias   : " h_alias
   [[ -z "$h_alias" ]] && echo "  Cancelled." && return
 
-  read -rp "  HostName or IP:              " h_hostname
+  read -rp "  Host    : " h_hostname
   [[ -z "$h_hostname" ]] && echo "  Cancelled." && return
 
-  read -rp "  User                    : " h_user
-  read -rp "  Port                    : " h_port; h_port=${h_port:-22}
+  read -rp "  User    : " h_user
+  read -rp "  Port    : " h_port; h_port=${h_port:-22}
 
   # 第二步：选择密钥（内联）
   echo ""
