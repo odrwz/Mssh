@@ -6,6 +6,73 @@
 set -uo pipefail
 
 SSH_CONFIG="$HOME/.ssh/config"
+# --- Color Theme System -----------------------------------------------------
+
+_init_colors() {
+  local theme="${MSSH_THEME:-default}"
+  [[ -n "${NO_COLOR:-}" ]] && theme="none"
+
+  C_RST=""; C_BLD=""; C_DIM=""; C_RED=""; C_GRN=""; C_YLW=""; C_BLU=""
+  C_MAG=""; C_CYN=""; C_WHT=""; C_GRY=""; C_BRED=""; C_BGRN=""; C_BYLW=""
+  C_BBLU=""; C_BMAG=""; C_BCYN=""; C_BWHT=""
+
+  if [[ "$theme" != "none" ]]; then
+    C_RST=$'\033[0m'; C_BLD=$'\033[1m'; C_DIM=$'\033[2m'
+    C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YLW=$'\033[33m'; C_BLU=$'\033[34m'
+    C_MAG=$'\033[35m'; C_CYN=$'\033[36m'; C_WHT=$'\033[37m'; C_GRY=$'\033[90m'
+    C_BRED=$'\033[91m'; C_BGRN=$'\033[92m'; C_BYLW=$'\033[93m'; C_BBLU=$'\033[94m'
+    C_BMAG=$'\033[95m'; C_BCYN=$'\033[96m'; C_BWHT=$'\033[97m'
+  fi
+
+  case "$theme" in
+    default)
+      C_TITLE="${C_BCYN}${C_BLD}"; C_HEADER="${C_CYN}"; C_ITEM="${C_YLW}"
+      C_SUCCESS="${C_GRN}"; C_WARN="${C_YLW}"; C_ERROR="${C_RED}"
+      C_DIM2="${C_GRY}"; C_PROMPT="${C_BLU}"; C_HIGH="${C_BCYN}${C_BLD}"
+      ;;
+    dark)
+      C_TITLE="${C_BWHT}${C_BLD}"; C_HEADER="${C_WHT}"; C_ITEM="${C_BWHT}"
+      C_SUCCESS="${C_WHT}"; C_WARN="${C_WHT}"; C_ERROR="${C_BRED}"
+      C_DIM2="${C_GRY}"; C_PROMPT="${C_WHT}"; C_HIGH="${C_BWHT}${C_BLD}"
+      ;;
+    solarized)
+      C_TITLE="${C_BYLW}${C_BLD}"; C_HEADER="${C_CYN}"; C_ITEM="${C_YLW}"
+      C_SUCCESS="${C_GRN}"; C_WARN="${C_BYLW}"; C_ERROR="${C_RED}"
+      C_DIM2="${C_GRY}"; C_PROMPT="${C_MAG}"; C_HIGH="${C_BYLW}${C_BLD}"
+      ;;
+    minimal)
+      C_TITLE="${C_BLD}"; C_HEADER="${C_WHT}"; C_ITEM="${C_WHT}"
+      C_SUCCESS="${C_WHT}"; C_WARN="${C_WHT}"; C_ERROR="${C_BLD}"
+      C_DIM2="${C_GRY}"; C_PROMPT="${C_WHT}"; C_HIGH="${C_BLD}"
+      ;;
+    ocean)
+      C_TITLE="${C_BBLU}${C_BLD}"; C_HEADER="${C_BCYN}"; C_ITEM="${C_BLU}"
+      C_SUCCESS="${C_BCYN}"; C_WARN="${C_BBLU}"; C_ERROR="${C_RED}"
+      C_DIM2="${C_GRY}"; C_PROMPT="${C_CYN}"; C_HIGH="${C_BBLU}${C_BLD}"
+      ;;
+    forest)
+      C_TITLE="${C_BGRN}${C_BLD}"; C_HEADER="${C_GRN}"; C_ITEM="${C_GRN}"
+      C_SUCCESS="${C_BGRN}"; C_WARN="${C_YLW}"; C_ERROR="${C_RED}"
+      C_DIM2="${C_GRY}"; C_PROMPT="${C_GRN}"; C_HIGH="${C_BGRN}${C_BLD}"
+      ;;
+    sunset)
+      C_TITLE="${C_BYLW}${C_BLD}"; C_HEADER="${C_RED}"; C_ITEM="${C_YLW}"
+      C_SUCCESS="${C_BYLW}"; C_WARN="${C_RED}"; C_ERROR="${C_BRED}"
+      C_DIM2="${C_GRY}"; C_PROMPT="${C_MAG}"; C_HIGH="${C_BYLW}${C_BLD}"
+      ;;
+    *)
+      C_TITLE="${C_BCYN}${C_BLD}"; C_HEADER="${C_CYN}"; C_ITEM="${C_YLW}"
+      C_SUCCESS="${C_GRN}"; C_WARN="${C_YLW}"; C_ERROR="${C_RED}"
+      C_DIM2="${C_GRY}"; C_PROMPT="${C_BLU}"; C_HIGH="${C_BCYN}${C_BLD}"
+      ;;
+  esac
+}
+_init_colors
+
+_cecho() {
+  local color="$1"; shift
+  echo "${color}$*${C_RST}"
+}
 
 # --- Helpers ----------------------------------------------------------------
 
@@ -16,10 +83,8 @@ _ensure_config() {
 
 _print_host() {
   local alias=$1 hostname=$2 user=$3 port=${4:-22} idf=${5:-(none)}
-  printf "\n  Alias   : %s\n  Host    : %s\n  User    : %s\n  Port    : %s\n  Key     : %s\n\n" \
-    "$alias" "$hostname" "$user" "$port" "$idf"
+  printf "\n  ${C_BLD}Alias   :${C_RST} %s\n  ${C_BLD}Host    :${C_RST} %s\n  ${C_BLD}User    :${C_RST} %s\n  ${C_BLD}Port    :${C_RST} %s\n  ${C_BLD}Key     :${C_RST} %s\n\n"     "$alias" "$hostname" "$user" "$port" "$idf"
 }
-
 # --- SSH Config CRUD --------------------------------------------------------
 
 # Output: one line per host -> alias|hostname|user|port|identityfile
@@ -70,21 +135,21 @@ list_keys() {
 
 do_generate_key() {
   echo ""
-  echo "  Key Type:"
-  echo "  1) ed25519  (recommended)"
-  echo "  2) rsa"
-  echo "  3) ecdsa"
+  _cecho "$C_HEADER" "  Key Type:"
+  _cecho "$C_ITEM" "  1) ed25519  (recommended)"
+  _cecho "$C_ITEM" "  2) rsa"
+  _cecho "$C_ITEM" "  3) ecdsa"
   read -rp "  Select [1]: " t
   t=${t:-1}
 
   local key_type bits=()
   case $t in
     2) key_type="rsa"
-       echo "  Bits: 1) 2048  2) 3072  3) 4096"
+       _cecho "$C_HEADER" "  Bits: 1) 2048  2) 3072  3) 4096"
        read -rp "  Select [3]: " b; b=${b:-3}
        case $b in 1) bits=(-b 2048);; 2) bits=(-b 3072);; *) bits=(-b 4096);; esac ;;
     3) key_type="ecdsa"
-       echo "  Curve: 1) 256  2) 384  3) 521"
+       _cecho "$C_HEADER" "  Curve: 1) 256  2) 384  3) 521"
        read -rp "  Select [1]: " b; b=${b:-1}
        case $b in 2) bits=(-b 384);; 3) bits=(-b 521);; *) bits=(-b 256);; esac ;;
     *) key_type="ed25519" ;;
@@ -96,8 +161,8 @@ do_generate_key() {
   local filepath="$HOME/.ssh/$filename"
 
   if [[ -f "$filepath" ]]; then
-    echo "  File already exists: $filepath"
-    echo "  Delete it first or choose a different name."
+    _cecho "$C_ERROR" "  File already exists: $filepath"
+    _cecho "$C_ERROR" "  Delete it first or choose a different name."
     return 1
   fi
 
@@ -105,7 +170,7 @@ do_generate_key() {
   [[ -n "$comment" ]] && args+=(-C "$comment")
 
   ssh-keygen "${args[@]}" && echo "  Key generated: $filepath"
-  echo "$filepath"
+  _cecho "$C_DIM2" "$filepath"
 }
 
 # --- Menus ------------------------------------------------------------------
@@ -117,19 +182,19 @@ menu_manage_hosts() {
       rows+=("$line")
     done < <(list_hosts)
     if [[ ${#rows[@]} -eq 0 ]]; then
-      echo "  No SSH hosts found in ~/.ssh/config."
+      _cecho "$C_WARN" "  No SSH hosts found in ~/.ssh/config."
       return
     fi
 
     echo ""
-    echo "  -- SSH Hosts ------------------------------------------"
+    _cecho "$C_HEADER" "  -- SSH Hosts ------------------------------------------"
     local i=1
     for row in "${rows[@]}"; do
       IFS='|' read -r alias hostname user port idf <<< "$row"
-      printf "  %2d) %-18s %s@%s:%s\n" "$i" "$alias" "${user:--}" "$hostname" "$port"
+      printf "  ${C_ITEM}%2d)${C_RST} ${C_HIGH}%-18s${C_RST} %s@%s:%s\n" "$i" "$alias" "${user:--}" "$hostname" "$port"
       (( i++ ))
     done
-    echo "   q) <- Back"
+    _cecho "$C_ITEM" "   q) <- Back"
     read -rp "  Select (number/q): " sel
     [[ -z "$sel" || "$sel" == "q" ]] && return
 
@@ -147,7 +212,7 @@ menu_one_host() {
   local h_alias=$1 h_hostname=$2 h_user=$3 h_port=$4 h_idf=$5
   while true; do
     _print_host "$h_alias" "$h_hostname" "$h_user" "$h_port" "$h_idf"
-    echo "  1) Edit   2) Delete   q) <- Back"
+    _cecho "$C_ITEM" "  1) Edit   2) Delete   q) <- Back"
     read -rp "  Action (1-2/q): " act
     case $act in
       1)
@@ -160,10 +225,10 @@ menu_one_host() {
         
         # IdentityFile 选择列表
         echo ""
-        echo "  IdentityFile [$h_idf]:"
-        echo "  0) Keep current"
-        echo "  1) Select from existing keys"
-        echo "  2) Clear (remove key)"
+        _cecho "$C_HEADER" "  IdentityFile [$h_idf]:"
+        _cecho "$C_ITEM" "  0) Keep current"
+        _cecho "$C_ITEM" "  1) Select from existing keys"
+        _cecho "$C_ITEM" "  2) Clear (remove key)"
         read -rp "  Choose [0]: " idf_opt
         idf_opt=${idf_opt:-0}
         case $idf_opt in
@@ -173,12 +238,12 @@ menu_one_host() {
               keys+=("$line")
             done < <(list_keys 2>/dev/null || true)
             if [[ ${#keys[@]} -eq 0 ]]; then
-              echo "  No existing keys found. Keeping current."
+              _cecho "$C_WARN" "  No existing keys found. Keeping current."
             else
               echo ""
               local i=1
-              for k in "${keys[@]}"; do printf "  %d) %s\n" "$i" "$k"; (( i++ )); done
-              echo "  q) Cancel"
+              for k in "${keys[@]}"; do printf "  ${C_ITEM}%d)${C_RST} %s\n" "$i" "$k"; (( i++ )); done
+              _cecho "$C_ITEM" "  q) Cancel"
               read -rp "  Select key: " ksel
               if [[ "$ksel" != "q" && "$ksel" != "Q" && -n "$ksel" ]]; then
                 local idx=$(( ksel - 1 ))
@@ -192,13 +257,13 @@ menu_one_host() {
         
         delete_host "$orig_alias"
         add_host "$h_alias" "$h_hostname" "$h_user" "$h_port" "$h_idf"
-        echo "  Host updated."
+        _cecho "$C_SUCCESS" "  Host updated."
         return ;;
       2)
         read -rp "  Delete [$h_alias]? (y/N): " confirm
         if [[ "$confirm" == [Yy] ]]; then
           delete_host "$h_alias"
-          echo "  Host deleted."
+          _cecho "$C_SUCCESS" "  Host deleted."
           return
         fi ;;
       q|Q|"") return ;;
@@ -222,10 +287,10 @@ menu_new_host() {
 
   # 第二步：选择密钥（内联）
   echo ""
-  echo "  IdentityFile (SSH Key):"
-  echo "  1) Select Existing Key"
-  echo "  2) Generate New Key"
-  echo "  3) Skip"
+  _cecho "$C_HEADER" "  IdentityFile (SSH Key):"
+  _cecho "$C_ITEM" "  1) Select Existing Key"
+  _cecho "$C_ITEM" "  2) Generate New Key"
+  _cecho "$C_ITEM" "  3) Skip"
   read -rp "  Choose: " key_opt
 
   case $key_opt in
@@ -235,11 +300,11 @@ menu_new_host() {
         keys+=("$line")
       done < <(list_keys 2>/dev/null || true)
       if [[ ${#keys[@]} -eq 0 ]]; then
-        echo "  No existing keys found in ~/.ssh/."
+        _cecho "$C_WARN" "  No existing keys found in ~/.ssh/."
       else
         echo ""
         local i=1
-        for k in "${keys[@]}"; do printf "  %d) %s\n" "$i" "$k"; (( i++ )); done
+        for k in "${keys[@]}"; do printf "  ${C_ITEM}%d)${C_RST} %s\n" "$i" "$k"; (( i++ )); done
         read -rp "  Select key: " ksel
         h_idf="${keys[$(( ksel - 1 ))]:-}"
       fi ;;
@@ -250,26 +315,26 @@ menu_new_host() {
   # 第三步：确认/编辑循环
   while true; do
     _print_host "$h_alias" "$h_hostname" "$h_user" "$h_port" "$h_idf"
-    echo "  1) Confirm and Save"
-    echo "  2) Edit..."
-    echo "  q) Cancel"
+    _cecho "$C_ITEM" "  1) Confirm and Save"
+    _cecho "$C_ITEM" "  2) Edit..."
+    _cecho "$C_ITEM" "  q) Cancel"
     read -rp "  Choose (1-2/q): " confirm_opt
     
     case $confirm_opt in
       1)
         add_host "$h_alias" "$h_hostname" "$h_user" "$h_port" "$h_idf"
-        echo "  Host [$h_alias] added to ~/.ssh/config."
+        _cecho "$C_SUCCESS" "  Host [$h_alias] added to ~/.ssh/config."
         return ;;
       2)
         # 编辑字段（内联）
         echo ""
-        echo "  Select field to edit:"
-        echo "  1) Alias       [$h_alias]"
-        echo "  2) HostName    [$h_hostname]"
-        echo "  3) User        [$h_user]"
-        echo "  4) Port        [$h_port]"
-        echo "  5) IdentityFile [${h_idf:-(none)}]"
-        echo "  q) Back"
+        _cecho "$C_HEADER" "  Select field to edit:"
+        _cecho "$C_ITEM" "  1) Alias       [$h_alias]"
+        _cecho "$C_ITEM" "  2) HostName    [$h_hostname]"
+        _cecho "$C_ITEM" "  3) User        [$h_user]"
+        _cecho "$C_ITEM" "  4) Port        [$h_port]"
+        _cecho "$C_ITEM" "  5) IdentityFile [${h_idf:-(none)}]"
+        _cecho "$C_ITEM" "  q) Back"
         read -rp "  Choose: " field
         
         case $field in
@@ -288,11 +353,11 @@ menu_new_host() {
           5)
             # 重新选择密钥（内联）
             echo ""
-            echo "  IdentityFile (SSH Key):"
-            echo "  1) Select Existing Key"
-            echo "  2) Generate New Key"
-            echo "  3) Clear"
-            echo "  4) Keep current"
+            _cecho "$C_HEADER" "  IdentityFile (SSH Key):"
+            _cecho "$C_ITEM" "  1) Select Existing Key"
+            _cecho "$C_ITEM" "  2) Generate New Key"
+            _cecho "$C_ITEM" "  3) Clear"
+            _cecho "$C_ITEM" "  4) Keep current"
             read -rp "  Choose: " key_opt2
             case $key_opt2 in
               1)
@@ -301,11 +366,11 @@ menu_new_host() {
                   keys2+=("$line")
                 done < <(list_keys 2>/dev/null || true)
                 if [[ ${#keys2[@]} -eq 0 ]]; then
-                  echo "  No existing keys found."
+                  _cecho "$C_WARN" "  No existing keys found."
                 else
                   echo ""
                   local i=1
-                  for k in "${keys2[@]}"; do printf "  %d) %s\n" "$i" "$k"; (( i++ )); done
+                  for k in "${keys2[@]}"; do printf "  ${C_ITEM}%d)${C_RST} %s\n" "$i" "$k"; (( i++ )); done
                   read -rp "  Select key: " ksel2
                   h_idf="${keys2[$(( ksel2 - 1 ))]:-}"
                 fi ;;
@@ -315,7 +380,7 @@ menu_new_host() {
         esac
         ;;
       q|Q|"")
-        echo "  Cancelled."
+        _cecho "$C_WARN" "  Cancelled."
         return ;;
     esac
   done
@@ -324,10 +389,10 @@ menu_new_host() {
 menu_manage_keys() {
   while true; do
     echo ""
-    echo "  -- Key Management -------------------------------------"
-    echo "  1) List Keys"
-    echo "  2) Generate New Key"
-    echo "  q) <- Back"
+    _cecho "$C_HEADER" "  -- Key Management -------------------------------------"
+    _cecho "$C_ITEM" "  1) List Keys"
+    _cecho "$C_ITEM" "  2) Generate New Key"
+    _cecho "$C_ITEM" "  q) <- Back"
     read -rp "  Select (1-3/q): " opt
     case $opt in
       1)
@@ -337,9 +402,9 @@ menu_manage_keys() {
           keys+=("$line")
         done < <(list_keys 2>/dev/null || true)
         if [[ ${#keys[@]} -eq 0 ]]; then
-          echo "  No SSH private keys found in ~/.ssh/."
+          _cecho "$C_ERROR" "  No SSH private keys found in ~/.ssh/."
         else
-          echo "  SSH Private Keys:"
+          _cecho "$C_HEADER" "  SSH Private Keys:"
           for k in "${keys[@]}"; do echo "    * $k"; done
         fi ;;
       2) do_generate_key ;;
@@ -347,26 +412,25 @@ menu_manage_keys() {
     esac
   done
 }
-
 # --- Entry Point ------------------------------------------------------------
 
 main() {
-  echo "╔══════════════════════════════════════╗"
-  echo "║    mssh -- SSH Host & Key Manager    ║"
-  echo "╚══════════════════════════════════════╝"
+  _cecho "$C_TITLE" "╔══════════════════════════════════════╗"
+  _cecho "$C_TITLE" "║    mssh -- SSH Host & Key Manager    ║"
+  _cecho "$C_TITLE" "╚══════════════════════════════════════╝"
 
   while true; do
     echo ""
-    echo "  1) Manage SSH Hosts"
-    echo "  2) New SSH Host"
-    echo "  3) Manage SSH Keys"
-    echo "  q) Exit"
+    _cecho "$C_ITEM" "  1) Manage SSH Hosts"
+    _cecho "$C_ITEM" "  2) New SSH Host"
+    _cecho "$C_ITEM" "  3) Manage SSH Keys"
+    _cecho "$C_ITEM" "  q) Exit"
     read -rp "  Select (1-3/q): " opt
     case $opt in
       1) menu_manage_hosts ;;
       2) menu_new_host ;;
       3) menu_manage_keys ;;
-      q|Q|"") echo "  Goodbye!"; exit 0 ;;
+      q|Q|"") _cecho "$C_SUCCESS" "  Goodbye!"; exit 0 ;;
     esac
   done
 }
