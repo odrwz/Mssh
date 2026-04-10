@@ -13,8 +13,14 @@ _parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --theme|-t)
-        MSSH_THEME="${2:-default}"
+        _CLI_THEME="${2:-default}"
         shift 2 ;;
+      --set-theme)
+        local th="${2:-default}"
+        mkdir -p "$HOME/.config/mssh"
+        echo "MSSH_THEME=\"$th\"" > "$HOME/.config/mssh/theme"
+        echo "Default theme set to: $th"
+        exit 0 ;;
       --no-color)
         NO_COLOR=1
         shift ;;
@@ -23,7 +29,8 @@ _parse_args() {
 Usage: mssh [OPTIONS]
 
 Options:
-  -t, --theme <name>   Set color theme
+  -t, --theme <name>   Set color theme for this session
+  --set-theme <name>   Set default theme permanently
   --no-color           Disable colored output
   -h, --help           Show this help message
 
@@ -32,8 +39,9 @@ Available themes:
 
 Examples:
   mssh                    # Launch with default theme
-  mssh --theme ocean      # Use ocean theme
-  mssh --no-color         # Disable colors
+  mssh --theme ocean      # Use ocean theme once
+  mssh --set-theme ocean  # Make ocean the default
+  mssh --no-color         # Disable colors once
   MSSH_THEME=dark mssh    # Set theme via environment
   NO_COLOR=1 mssh         # Disable colors via environment
 EOF
@@ -43,6 +51,17 @@ EOF
   done
 }
 _parse_args "$@"
+
+# --- Config -----------------------------------------------------------------
+
+_load_config() {
+  local config_file="$HOME/.config/mssh/theme"
+  [[ -f "$config_file" ]] && [[ -z "${MSSH_THEME:-}" ]] && source "$config_file"
+}
+_load_config
+
+# Apply CLI theme override after config load
+[[ -n "${_CLI_THEME:-}" ]] && MSSH_THEME="$_CLI_THEME"
 
 # --- Color Theme System -----------------------------------------------------
 

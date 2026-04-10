@@ -44,24 +44,27 @@ An interactive menu will guide you through all options.
 `mssh` supports 7 built-in color themes plus a no-color mode:
 
 ```bash
-mssh --theme ocean       # Use a specific theme
+mssh --theme ocean       # Use a specific theme for this session
 mssh -t forest           # Short flag
-mssh --no-color          # Disable colors completely
+mssh --set-theme ocean   # Set ocean as the permanent default
+mssh --no-color          # Disable colors for this session
 ```
 
 Available themes: `default`, `dark`, `solarized`, `minimal`, `ocean`, `forest`, `sunset`.
 
-You can also set a default theme via environment variable:
+**Set a permanent default theme:**
 
 ```bash
-export MSSH_THEME="ocean"
-mssh
+mssh --set-theme ocean
 ```
 
-Or disable colors permanently:
+This writes the preference to `~/.config/mssh/theme`. You can override it temporarily with `--theme` or the `MSSH_THEME` environment variable.
+
+**Environment variables:**
 
 ```bash
-export NO_COLOR=1
+export MSSH_THEME="ocean"   # Default theme
+export NO_COLOR=1           # Disable colors globally
 mssh
 ```
 
